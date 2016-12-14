@@ -1,0 +1,12 @@
+win/msyh.ttf
+win/simfang.ttf
+win/simhei.ttf
+win/simkai.ttf
+win/simsun.ttc
+win/SIMYOU.TTF
+win/STFANGSO.TTF
+win/STKAITI.TTF
+win/STSONG.TTF
+win/STXIHEI.TTF
+win/STXINWEI.TTF
+win/STZHONGS.TTF
