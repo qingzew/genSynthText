@@ -8,13 +8,10 @@ Main script for synthetic text rendering.
 from __future__ import division
 import copy
 import cv2
-import h5py
 from PIL import Image
-import numpy as np 
+import numpy as np
 #import mayavi.mlab as mym
-import matplotlib.pyplot as plt 
-import os.path as osp
-import scipy.ndimage as sim
+import matplotlib.pyplot as plt
 import scipy.spatial.distance as ssd
 import synth_utils as su
 import text_utils as tu
@@ -32,7 +29,7 @@ class TextRegions(object):
     minHeight = 30 #px
     minAspect = 0.3 # w > 0.3*h
     maxAspect = 7
-    minArea = 100 # number of pix
+    minArea = 50 # number of pix
     pArea = 0.60 # area_obj/area_minrect >= 0.6
 
     # RANSAC planar fitting params:
@@ -62,7 +59,7 @@ class TextRegions(object):
         if return_rot:
             return h,w,R
         return h,w
- 
+
     @staticmethod
     def filter(seg,area,label):
         """
@@ -73,15 +70,15 @@ class TextRegions(object):
         area = area[area > TextRegions.minArea]
         filt,R = [],[]
         for idx,i in enumerate(good):
-            mask = seg==i
+            mask = (seg==i)
             xs,ys = np.where(mask)
 
             coords = np.c_[xs,ys].astype('float32')
-            rect = cv2.minAreaRect(coords)          
+            rect = cv2.minAreaRect(coords)
             box = np.array(cv2.cv.BoxPoints(rect))
-            h,w,rot = TextRegions.get_hw(box,return_rot=True)
+            h, w, rot = TextRegions.get_hw(box,return_rot=True)
 
-            f = (h > TextRegions.minHeight 
+            f = (h > TextRegions.minHeight
                 and w > TextRegions.minWidth
                 and TextRegions.minAspect < w/h < TextRegions.maxAspect
                 and area[idx]/w*h > TextRegions.pArea)
@@ -101,55 +98,55 @@ class TextRegions(object):
         return filter_info
 
     @staticmethod
-    def sample_grid_neighbours(mask,nsample,step=3):
+    def sample_grid_neighbours(mask, nsample, step = 3):
         """
         Given a HxW binary mask, sample 4 neighbours on the grid,
         in the cardinal directions, STEP pixels away.
         """
-        if 2*step >= min(mask.shape[:2]):
+        if 2 * step >= min(mask.shape[:2]):
             return #None
 
-        y_m,x_m = np.where(mask)
+        y_m, x_m = np.where(mask)
         mask_idx = np.zeros_like(mask,'int32')
         for i in xrange(len(y_m)):
             mask_idx[y_m[i],x_m[i]] = i
 
-        xp,xn = np.zeros_like(mask), np.zeros_like(mask)
-        yp,yn = np.zeros_like(mask), np.zeros_like(mask)
-        xp[:,:-2*step] = mask[:,2*step:]
-        xn[:,2*step:] = mask[:,:-2*step]
-        yp[:-2*step,:] = mask[2*step:,:]
-        yn[2*step:,:] = mask[:-2*step,:]
-        valid = mask&xp&xn&yp&yn
+        xp, xn = np.zeros_like(mask), np.zeros_like(mask)
+        yp, yn = np.zeros_like(mask), np.zeros_like(mask)
+        xp[:, :-2 * step] = mask[:, 2 * step:]
+        xn[:, 2 * step:] = mask[:, :-2 * step]
+        yp[: -2 * step, :] = mask[2 * step:, :]
+        yn[2 * step:, :] = mask[:-2 * step, :]
+        valid = mask & xp & xn & yp & yn
 
-        ys,xs = np.where(valid)
+        ys, xs = np.where(valid)
         N = len(ys)
         if N==0: #no valid pixels in mask:
             return #None
         nsample = min(nsample,N)
-        idx = np.random.choice(N,nsample,replace=False)
+        idx = np.random.choice(N, nsample, replace = False)
         # generate neighborhood matrix:
         # (1+4)x2xNsample (2 for y,x)
-        xs,ys = xs[idx],ys[idx]
+        xs, ys = xs[idx], ys[idx]
         s = step
-        X = np.transpose(np.c_[xs,xs+s,xs+s,xs-s,xs-s][:,:,None],(1,2,0))
-        Y = np.transpose(np.c_[ys,ys+s,ys-s,ys+s,ys-s][:,:,None],(1,2,0))
-        sample_idx = np.concatenate([Y,X],axis=1)
-        mask_nn_idx = np.zeros((5,sample_idx.shape[-1]),'int32')
+        X = np.transpose(np.c_[xs, xs + s, xs + s, xs - s, xs - s][:, :, None],(1, 2, 0))
+        Y = np.transpose(np.c_[ys, ys + s, ys - s, ys + s, ys - s][:, :, None],(1, 2, 0))
+        sample_idx = np.concatenate([Y, X],axis = 1)
+        mask_nn_idx = np.zeros((5, sample_idx.shape[-1]), 'int32')
         for i in xrange(sample_idx.shape[-1]):
-            mask_nn_idx[:,i] = mask_idx[sample_idx[:,:,i][:,0],sample_idx[:,:,i][:,1]]
+            mask_nn_idx[:, i] = mask_idx[sample_idx[:, :, i][:, 0], sample_idx[:, :, i][:, 1]]
         return mask_nn_idx
 
     @staticmethod
-    def filter_depth(xyz,seg,regions):
+    def filter_depth(xyz, seg, regions):
         plane_info = {'label':[],
                       'coeff':[],
                       'support':[],
                       'rot':[],
                       'area':[]}
-        for idx,l in enumerate(regions['label']):
-            mask = seg==l
-            pt_sample = TextRegions.sample_grid_neighbours(mask,TextRegions.ransac_fit_trials,step=3)
+        for idx, l in enumerate(regions['label']):
+            mask = (seg==l)
+            pt_sample = TextRegions.sample_grid_neighbours(mask, TextRegions.ransac_fit_trials, step = 3)
             if pt_sample is None:
                 continue #not enough points for RANSAC
             # get-depths
@@ -160,7 +157,7 @@ class TextRegions(object):
                                      TextRegions.min_z_projection)
             if plane_model is not None:
                 plane_coeff = plane_model[0]
-                if np.abs(plane_coeff[2])>TextRegions.min_z_projection:
+                if np.abs(plane_coeff[2]) > TextRegions.min_z_projection:
                     plane_info['label'].append(l)
                     plane_info['coeff'].append(plane_model[0])
                     plane_info['support'].append(plane_model[1])
@@ -171,14 +168,14 @@ class TextRegions(object):
 
     @staticmethod
     def get_regions(xyz,seg,area,label):
-        regions = TextRegions.filter(seg,area,label)
+        regions = TextRegions.filter(seg, area, label)
         # fit plane to text-regions:
-        regions = TextRegions.filter_depth(xyz,seg,regions)
+        regions = TextRegions.filter_depth(xyz, seg, regions)
         return regions
 
 def rescale_frontoparallel(p_fp,box_fp,p_im):
     """
-    The fronto-parallel image region is rescaled to bring it in 
+    The fronto-parallel image region is rescaled to bring it in
     the same approx. size as the target region size.
 
     p_fp : nx2 coordinates of countour points in the fronto-parallel plane
@@ -189,22 +186,22 @@ def rescale_frontoparallel(p_fp,box_fp,p_im):
 
     Returns the scale 's' to scale the fronto-parallel points by.
     """
-    l1 = np.linalg.norm(box_fp[1,:]-box_fp[0,:])
-    l2 = np.linalg.norm(box_fp[1,:]-box_fp[2,:])
+    l1 = np.linalg.norm(box_fp[1, :] - box_fp[0, :])
+    l2 = np.linalg.norm(box_fp[1, :] - box_fp[2, :])
 
-    n0 = np.argmin(np.linalg.norm(p_fp-box_fp[0,:][None,:],axis=1))
-    n1 = np.argmin(np.linalg.norm(p_fp-box_fp[1,:][None,:],axis=1))
-    n2 = np.argmin(np.linalg.norm(p_fp-box_fp[2,:][None,:],axis=1))
+    n0 = np.argmin(np.linalg.norm(p_fp-box_fp[0, :][None, :], axis = 1))
+    n1 = np.argmin(np.linalg.norm(p_fp-box_fp[1, :][None, :], axis = 1))
+    n2 = np.argmin(np.linalg.norm(p_fp-box_fp[2, :][None, :], axis = 1))
 
-    lt1 = np.linalg.norm(p_im[n1,:]-p_im[n0,:])
-    lt2 = np.linalg.norm(p_im[n1,:]-p_im[n2,:])
+    lt1 = np.linalg.norm(p_im[n1, :] - p_im[n0, :])
+    lt2 = np.linalg.norm(p_im[n1, :] - p_im[n2, :])
 
-    s =  max(lt1/l1,lt2/l2)
+    s =  max(lt1 / l1, lt2 / l2)
     if not np.isfinite(s):
         s = 1.0
     return s
 
-def get_text_placement_mask(xyz,mask,plane,pad=2,viz=False):
+def get_text_placement_mask(xyz, mask, plane, pad = 2, viz = False):
     """
     Returns a binary mask in which text can be placed.
     Also returns a homography from original image
@@ -215,65 +212,65 @@ def get_text_placement_mask(xyz,mask,plane,pad=2,viz=False):
     REGION : DICT output of TextRegions.get_regions
     PAD : number of pixels to pad the placement-mask by
     """
-    contour,hier = cv2.findContours(mask.copy().astype('uint8'),
-                                    mode=cv2.cv.CV_RETR_CCOMP,
-                                    method=cv2.cv.CV_CHAIN_APPROX_SIMPLE)
+    contour, hier = cv2.findContours(mask.copy().astype('uint8'),
+                                    mode = cv2.cv.CV_RETR_CCOMP,
+                                    method = cv2.cv.CV_CHAIN_APPROX_SIMPLE)
     contour = [np.squeeze(c).astype('float') for c in contour]
     #plane = np.array([plane[1],plane[0],plane[2],plane[3]])
-    H,W = mask.shape[:2]
+    H, W = mask.shape[:2]
 
     # bring the contour 3d points to fronto-parallel config:
-    pts,pts_fp = [],[]
-    center = np.array([W,H])/2
-    n_front = np.array([0.0,0.0,-1.0])
+    pts, pts_fp = [],[]
+    center = np.array([W, H]) / 2
+    n_front = np.array([0.0, 0.0, -1.0])
     for i in xrange(len(contour)):
         cnt_ij = contour[i]
         xyz = su.DepthCamera.plane2xyz(center, cnt_ij, plane)
-        R = su.rot3d(plane[:3],n_front)
+        R = su.rot3d(plane[:3], n_front)
         xyz = xyz.dot(R.T)
-        pts_fp.append(xyz[:,:2])
+        pts_fp.append(xyz[:, :2])
         pts.append(cnt_ij)
 
     # unrotate in 2D plane:
     rect = cv2.minAreaRect(pts_fp[0].copy().astype('float32'))
     box = np.array(cv2.cv.BoxPoints(rect))
     R2d = su.unrotate2d(box.copy())
-    box = np.vstack([box,box[0,:]]) #close the box for visualization
+    box = np.vstack([box,box[0, :]]) #close the box for visualization
 
-    mu = np.median(pts_fp[0],axis=0)
-    pts_tmp = (pts_fp[0]-mu[None,:]).dot(R2d.T) + mu[None,:]
-    boxR = (box-mu[None,:]).dot(R2d.T) + mu[None,:]
-    
+    mu = np.median(pts_fp[0], axis = 0)
+    pts_tmp = (pts_fp[0] - mu[None, :]).dot(R2d.T) + mu[None, :]
+    boxR = (box - mu[None, :]).dot(R2d.T) + mu[None, :]
+
     # rescale the unrotated 2d points to approximately
     # the same scale as the target region:
-    s = rescale_frontoparallel(pts_tmp,boxR,pts[0])
+    s = rescale_frontoparallel(pts_tmp, boxR, pts[0])
     boxR *= s
     for i in xrange(len(pts_fp)):
-        pts_fp[i] = s*((pts_fp[i]-mu[None,:]).dot(R2d.T) + mu[None,:])
+        pts_fp[i] = s * ((pts_fp[i] - mu[None, :]).dot(R2d.T) + mu[None, :])
 
     # paint the unrotated contour points:
-    minxy = -np.min(boxR,axis=0) + pad//2
-    ROW = np.max(ssd.pdist(np.atleast_2d(boxR[:,0]).T))
-    COL = np.max(ssd.pdist(np.atleast_2d(boxR[:,1]).T))
+    minxy = -np.min(boxR, axis = 0) + pad // 2
+    ROW = np.max(ssd.pdist(np.atleast_2d(boxR[:, 0]).T))
+    COL = np.max(ssd.pdist(np.atleast_2d(boxR[:, 1]).T))
 
-    place_mask = 255*np.ones((np.ceil(COL)+pad,np.ceil(ROW)+pad),'uint8')
+    place_mask = 255 * np.ones((np.ceil(COL) + pad, np.ceil(ROW) + pad), 'uint8')
 
-    pts_fp_i32 = [(pts_fp[i]+minxy[None,:]).astype('int32') for i in xrange(len(pts_fp))]
-    cv2.drawContours(place_mask,pts_fp_i32,-1,0,
-                     thickness=cv2.cv.CV_FILLED,
-                     lineType=8,hierarchy=hier)
-    
-    if not TextRegions.filter_rectified((~place_mask).astype('float')/255):
+    pts_fp_i32 = [(pts_fp[i] + minxy[None, :]).astype('int32') for i in xrange(len(pts_fp))]
+    cv2.drawContours(place_mask, pts_fp_i32, -1, 0,
+                     thickness = cv2.cv.CV_FILLED,
+                     lineType = 8, hierarchy = hier)
+
+    if not TextRegions.filter_rectified((~place_mask).astype('float') / 255):
         return
 
     # calculate the homography
-    H,_ = cv2.findHomography(pts[0].astype('float32').copy(),
+    H, _ = cv2.findHomography(pts[0].astype('float32').copy(),
                              pts_fp_i32[0].astype('float32').copy(),
-                             method=0)
+                             method = 0)
 
     Hinv,_ = cv2.findHomography(pts_fp_i32[0].astype('float32').copy(),
                                 pts[0].astype('float32').copy(),
-                                method=0)
+                                method = 0)
     if viz:
         plt.subplot(1,2,1)
         plt.imshow(mask)
@@ -307,7 +304,7 @@ def viz_masks(fignum,rgb,seg,depth,label):
     for i,idx in enumerate(label):
         mask = seg==idx
         rgb_rand = (255*np.random.rand(3)).astype('uint8')
-        img[mask] = rgb_rand[None,None,:] 
+        img[mask] = rgb_rand[None,None,:]
 
     #import scipy
     # scipy.misc.imsave('seg.png', mim)
@@ -340,7 +337,7 @@ def viz_regions(img,xyz,seg,planes,labels):
     mym.view(180,180)
     mym.orientation_axes()
     mym.show(True)
- 
+
 def viz_textbb(fignum,text_im, bb_list,alpha=1.0):
     """
     text_im : image containing text
@@ -385,13 +382,13 @@ class RendererV3(object):
             regions[k] = [regions[k][i] for i in idx]
         return regions
 
-    def filter_for_placement(self,xyz,seg,regions):
+    def filter_for_placement(self, xyz, seg, regions):
         filt = np.zeros(len(regions['label'])).astype('bool')
-        masks,Hs,Hinvs = [],[], []
-        for idx,l in enumerate(regions['label']):
-            res = get_text_placement_mask(xyz,seg==l,regions['coeff'][idx],pad=2)
+        masks, Hs, Hinvs = [],[], []
+        for idx, l in enumerate(regions['label']):
+            res = get_text_placement_mask(xyz, seg==l, regions['coeff'][idx], pad = 2)
             if res is not None:
-                mask,H,Hinv = res
+                mask, H, Hinv = res
                 masks.append(mask)
                 Hs.append(H)
                 Hinvs.append(Hinv)
@@ -551,7 +548,7 @@ class RendererV3(object):
         wrds = text.split()
         bb_idx = np.r_[0, np.cumsum([len(w) for w in wrds])]
         wordBB = np.zeros((2,4,len(wrds)), 'float32')
-        
+
         for i in xrange(len(wrds)):
             cc = charBB[:,:,bb_idx[i]:bb_idx[i+1]]
 
@@ -591,7 +588,7 @@ class RendererV3(object):
                     used to place text.
 
         @return:
-            res : a list of dictionaries, one for each of 
+            res : a list of dictionaries, one for each of
                   the image instances.
                   Each dictionary has the following structure:
                       'img' : rgb-image with text on it.
@@ -601,19 +598,19 @@ class RendererV3(object):
 
                   The correspondence b/w bb and txt is that
                   i-th non-space white-character in txt is at bb[:,:,i].
-            
-            If there's an error in pre-text placement, for e.g. if there's 
+
+            If there's an error in pre-text placement, for e.g. if there's
             no suitable region for text placement, an empty list is returned.
         """
         try:
             # depth -> xyz
             xyz = su.DepthCamera.depth2xyz(depth)
-            
+
             # find text-regions:
-            regions = TextRegions.get_regions(xyz,seg,area,label)
+            regions = TextRegions.get_regions(xyz, seg, area, label)
 
             # find the placement mask and homographies:
-            regions = self.filter_for_placement(xyz,seg,regions)
+            regions = self.filter_for_placement(xyz, seg, regions)
 
             # finally place some text:
             nregions = len(regions['place_mask'])
@@ -643,7 +640,7 @@ class RendererV3(object):
             itext = []
             ibb = []
 
-            # process regions: 
+            # process regions:
             num_txt_regions = len(reg_idx)
             NUM_REP = 5 # re-use each region three times:
             reg_range = np.arange(NUM_REP * num_txt_regions) % num_txt_regions
@@ -688,5 +685,5 @@ class RendererV3(object):
                     viz_masks(2,img,seg,depth,regions['label'])
                     # viz_regions(rgb.copy(),xyz,seg,regions['coeff'],regions['label'])
                     if i < ninstance-1:
-                        raw_input(colorize(Color.BLUE,'continue?',True))                    
+                        raw_input(colorize(Color.BLUE,'continue?',True))
         return res

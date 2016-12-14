@@ -6,14 +6,14 @@ Visualize the generated localization synthetic
 data stored in h5 data-bases
 """
 from __future__ import division
-import os
-import os.path as osp
 import numpy as np
-import matplotlib.pyplot as plt 
-import h5py 
+import matplotlib
+matplotlib.use('Agg')
+import matplotlib.pyplot as plt
+import h5py
 from common import *
 
-
+cnt = 0
 
 def viz_textbb(text_im, charBB_list, wordBB, alpha=1.0):
     """
@@ -21,8 +21,7 @@ def viz_textbb(text_im, charBB_list, wordBB, alpha=1.0):
     charBB_list : list of 2x4xn_i bounding-box matrices
     wordBB : 2x4xm matrix of word coordinates
     """
-    plt.close(1)
-    plt.figure(1)
+    global cnt
     plt.imshow(text_im)
     plt.hold(True)
     H,W = text_im.shape[:2]
@@ -44,11 +43,17 @@ def viz_textbb(text_im, charBB_list, wordBB, alpha=1.0):
         # visualize the indiv vertices:
         vcol = ['r','g','b','k']
         for j in xrange(4):
-            plt.scatter(bb[0,j],bb[1,j],color=vcol[j])        
+            plt.scatter(bb[0,j],bb[1,j],color=vcol[j])
 
     plt.gca().set_xlim([0,W-1])
     plt.gca().set_ylim([H-1,0])
-    plt.show(block=False)
+    # plt.show(block=False)
+    filename = 'img_' + str(cnt) + '.png'
+    plt.savefig(filename)
+    cnt += 1
+
+    plt.close()
+    plt.figure()
 
 def main(db_fname):
     db = h5py.File(db_fname, 'r')

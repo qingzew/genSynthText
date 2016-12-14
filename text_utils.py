@@ -1,19 +1,16 @@
 from __future__ import division
 import numpy as np
-import matplotlib.pyplot as plt 
-import scipy.io as sio
+import matplotlib.pyplot as plt
 import os.path as osp
 import random, os
-import cv2
 import cPickle as cp
 import scipy.signal as ssig
 import scipy.stats as sstat
 import pygame, pygame.locals
 from pygame import freetype
-#import Image
-from PIL import Image
 import math
 from common import *
+import codecs
 
 
 def sample_weighted(p_dict):
@@ -107,13 +104,13 @@ class RenderFont(object):
         # get font-state object:
         self.font_state = FontState(data_dir)
 
-        pygame.init()
+        pygame.freetype.init()
 
     def render_multiline(self,font,text):
         """
         renders multiline TEXT on the pygame surface SURF with the
         font style FONT.
-        A new line in text is denoted by \n, no other characters are 
+        A new line in text is denoted by \n, no other characters are
         escaped. Other forms of white-spaces should be converted to space.
 
         returns the updated surface, words and the character bounding boxes.
@@ -124,7 +121,7 @@ class RenderFont(object):
 
         # font parameters:
         line_spacing = font.get_sized_height() + 1
-        
+
         # initialize the surface to proper size:
         line_bounds = font.get_rect(lines[np.argmax(lengths)])
         fsize = (round(2.0*line_bounds.width), round(1.25*line_spacing*len(lines)))
@@ -202,7 +199,7 @@ class RenderFont(object):
         ch_idx = []
         for i in xrange(wl):
             #skip the middle character
-            if i==mid_idx: 
+            if i==mid_idx:
                 bbs.append(mid_ch_bb)
                 ch_idx.append(i)
                 continue
@@ -230,7 +227,7 @@ class RenderFont(object):
             bbrect.y = newrect.y - bbrect.y
             bbs.append(np.array(bbrect))
             last_rect = newrect
-        
+
         # correct the bounding-box order:
         bbs_sequence_order = [None for i in ch_idx]
         for idx,i in enumerate(ch_idx):
@@ -264,7 +261,7 @@ class RenderFont(object):
 
         locs = [None for i in range(len(text_arrs))]
         out_arr = np.zeros_like(back_arr)
-        for i in order:            
+        for i in order:
             ba = np.clip(back_arr.copy().astype(np.float), 0, 255)
             ta = np.clip(text_arrs[i].copy().astype(np.float), 0, 255)
             ba[ba > 127] = 1e8
@@ -350,7 +347,7 @@ class RenderFont(object):
             f_h = self.font_state.get_font_size(font, f_h_px)
 
             # update for the loop
-            max_font_h = f_h_px 
+            max_font_h = f_h_px
             i += 1
 
             font.size = f_h # set the font-size
@@ -394,7 +391,7 @@ class RenderFont(object):
 
 class FontState(object):
     """
-    Defines the random state of the font rendering  
+    Defines the random state of the font rendering
     """
     size = [50, 10]  # normal dist mean, std
     underline = 0.05
@@ -413,7 +410,7 @@ class FontState(object):
 
     def __init__(self, data_dir='data'):
 
-        char_freq_path = osp.join(data_dir, 'models/char_freq.cp')        
+        char_freq_path = osp.join(data_dir, 'models/char_freq.cp')
         font_model_path = osp.join(data_dir, 'models/font_px2pt.cp')
 
         # get character-frequencies in the English language:
@@ -443,7 +440,7 @@ class FontState(object):
             sizes = font.get_metrics(chars,size)
             good_idx = [i for i in xrange(len(sizes)) if sizes[i] is not None]
             sizes,w = [sizes[i] for i in good_idx], w[good_idx]
-            sizes = np.array(sizes).astype('float')[:,[3,4]]        
+            sizes = np.array(sizes).astype('float')[:,[3,4]]
             r = np.abs(sizes[:,1]/sizes[:,0]) # width/height
             good = np.isfinite(r)
             r = r[good]
@@ -513,7 +510,7 @@ class TextSource(object):
                       'LINE':self.sample_line,
                       'PARA':self.sample_para}
 
-        with open(fn,'r') as f:
+        with codecs.open(fn, 'r', 'utf-8') as f:
             self.txt = [l.strip() for l in f.readlines()]
 
         # distribution over line/words for LINE/PARA:
@@ -596,7 +593,7 @@ class TextSource(object):
                         lines[i] = ''
                     else:
                         lines[i] = lines[i][:len(lines[i])-lines[i][::-1].find(' ')].strip()
-        
+
         if not np.all(self.is_good(lines,f)):
             return #None
         else:
@@ -604,15 +601,15 @@ class TextSource(object):
 
     def sample(self, nline_max,nchar_max,kind='WORD'):
         return self.fdict[kind](nline_max,nchar_max)
-        
+
     def sample_word(self,nline_max,nchar_max,niter=100):
-        rand_line = self.txt[np.random.choice(len(self.txt))]                
+        rand_line = self.txt[np.random.choice(len(self.txt))]
         words = rand_line.split()
         rand_word = random.choice(words)
 
         iter = 0
         while iter < niter and (not self.is_good([rand_word])[0] or len(rand_word)>nchar_max):
-            rand_line = self.txt[np.random.choice(len(self.txt))]                
+            rand_line = self.txt[np.random.choice(len(self.txt))]
             words = rand_line.split()
             rand_word = random.choice(words)
             iter += 1
@@ -629,7 +626,8 @@ class TextSource(object):
             nline = np.random.choice([1,2,3], p=self.p_line_nline)
 
         # get number of words:
-        nword = [self.p_line_nword[2]*sstat.beta.rvs(a=self.p_line_nword[0], b=self.p_line_nword[1])
+        # nword = [self.p_line_nword[2]*sstat.beta.rvs(a=self.p_line_nword[0], b=self.p_line_nword[1])
+        nword = [self.p_line_nword[2]*sstat.beta.rvs(self.p_line_nword[0], self.p_line_nword[1])
                  for _ in xrange(nline)]
         nword = [max(1,int(np.ceil(n))) for n in nword]
 
@@ -641,11 +639,13 @@ class TextSource(object):
 
     def sample_para(self,nline_max,nchar_max):
         # get number of lines in the paragraph:
-        nline = nline_max*sstat.beta.rvs(a=self.p_para_nline[0], b=self.p_para_nline[1])
+        # nline = nline_max*sstat.beta.rvs(a=self.p_para_nline[0], b=self.p_para_nline[1])
+        nline = nline_max*sstat.beta.rvs(self.p_para_nline[0], self.p_para_nline[1])
         nline = max(1, int(np.ceil(nline)))
 
         # get number of words:
-        nword = [self.p_para_nword[2]*sstat.beta.rvs(a=self.p_para_nword[0], b=self.p_para_nword[1])
+        # nword = [self.p_para_nword[2]*sstat.beta.rvs(a=self.p_para_nword[0], b=self.p_para_nword[1])
+        nword = [self.p_para_nword[2]*sstat.beta.rvs(self.p_para_nword[0], self.p_para_nword[1])
                  for _ in xrange(nline)]
         nword = [max(1,int(np.ceil(n))) for n in nword]
 
