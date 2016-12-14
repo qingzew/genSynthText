@@ -7,7 +7,7 @@ function evaluateMake3D
 % -------------------------------------------------------------------------
 
 % Set your matconvnet path here:
-matconvnet_path = '../../matconvnet-1.0-beta20';
+matconvnet_path = '/export/wangqingze/matconvnet-1.0-beta20/';
 setupMatConvNet(matconvnet_path);
 
 % -------------------------------------------------------------------------
@@ -18,8 +18,8 @@ opts.dataDir = fullfile(pwd, 'Make3D');     % working directory
 opts.interp = 'nearest';    % interpolation method applied during resizing
 opts.imageSize = [460,345]; % desired image size for evaluation
 
-netOpts.gpu = true;     % set to true to enable GPU support
-netOpts.plot = true;    % set to true to visualize the predictions during inference
+netOpts.gpu = false;     % set to true to enable GPU support
+netOpts.plot = false;    % set to true to visualize the predictions during inference
 
 % -------------------------------------------------------------------------
 % Prepate data
