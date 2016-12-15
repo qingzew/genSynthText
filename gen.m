@@ -22,7 +22,7 @@ netOpts.plot = false;    % set to true to visualize the predictions during infer
 
 net = get_dp_model(opts);
 
-img_list=dir('/export/wangqingze/py-faster-rcnn/data/VOCdevkit2007/VOC2007/JPEGImages/*.jpg');
+img_list=dir('./VOCdevkit2007/VOC2007/JPEGImages/*.jpg');
 
 filename = 'dset.h5';
 if exist(filename, 'file')
