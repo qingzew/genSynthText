@@ -18,7 +18,7 @@ import text_utils as tu
 from colorize3_poisson import Colorize
 from common import *
 import traceback, itertools
-
+import time
 
 class TextRegions(object):
     """
@@ -212,7 +212,7 @@ def get_text_placement_mask(xyz, mask, plane, pad = 2, viz = False):
     REGION : DICT output of TextRegions.get_regions
     PAD : number of pixels to pad the placement-mask by
     """
-    contour, hier = cv2.findContours(mask.copy().astype('uint8'),
+    contour, _ = cv2.findContours(mask.copy().astype('uint8'),
                                     mode = cv2.cv.CV_RETR_CCOMP,
                                     method = cv2.cv.CV_CHAIN_APPROX_SIMPLE)
     contour = [np.squeeze(c).astype('float') for c in contour]
@@ -225,6 +225,8 @@ def get_text_placement_mask(xyz, mask, plane, pad = 2, viz = False):
     n_front = np.array([0.0, 0.0, -1.0])
     for i in xrange(len(contour)):
         cnt_ij = contour[i]
+        if len(cnt_ij) < 4:
+            continue
         xyz = su.DepthCamera.plane2xyz(center, cnt_ij, plane)
         R = su.rot3d(plane[:3], n_front)
         xyz = xyz.dot(R.T)
@@ -258,7 +260,7 @@ def get_text_placement_mask(xyz, mask, plane, pad = 2, viz = False):
     pts_fp_i32 = [(pts_fp[i] + minxy[None, :]).astype('int32') for i in xrange(len(pts_fp))]
     cv2.drawContours(place_mask, pts_fp_i32, -1, 0,
                      thickness = cv2.cv.CV_FILLED,
-                     lineType = 8, hierarchy = hier)
+                     lineType = 8)
 
     if not TextRegions.filter_rectified((~place_mask).astype('float') / 255):
         return

@@ -22,15 +22,26 @@ netOpts.plot = false;    % set to true to visualize the predictions during infer
 
 net = get_dp_model(opts);
 
-img_list=dir('./VOCdevkit2007/VOC2007/JPEGImages/*.jpg');
-
-filename = 'dset.h5';
-if exist(filename, 'file')
-    delete(filename);
-end
+img_list=dir('/export/wangqingze/py-faster-rcnn/data/VOCdevkit2007/VOC2007/JPEGImages/*.jpg');
+fd = fopen('img_list', 'w');
 
 for i = 1:numel(img_list)
+    fprintf(fd, img_list(i).name);
+    fprintf(fd, '\n');
+end
+
+%filename = 'dset.h5';
+%if exist(filename, 'file')
+%    delete(filename);
+%end
+
+basename = 'dset';
+batch = 500;
+for i = 1:numel(img_list)
 %for i = 1:1:5
+    if mod(i - 1, batch) == 0
+        filename = strcat(basename, '_', int2str(i / batch), '.h5');
+    end
     img = imread(fullfile(opts.dataDirImages, img_list(i).name));  
     h5create(filename, strcat('/image/', img_list(i).name), [size(img, 3), size(img, 2), size(img, 1)], 'Datatype', 'uint8');
     h5write(filename, strcat('/image/', img_list(i).name), permute(img, [3, 2, 1]));

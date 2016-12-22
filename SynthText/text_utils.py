@@ -514,7 +514,7 @@ class TextSource(object):
             self.txt = [l.strip() for l in f.readlines()]
 
         # distribution over line/words for LINE/PARA:
-        self.p_line_nline = np.array([0.85, 0.10, 0.05])
+        self.p_line_nline = np.array([0.10, 0.85, 0.05])
         self.p_line_nword = [4,3,12]  # normal: (mu, std)
         self.p_para_nline = [1.0,1.0]#[1.7,3.0] # beta: (a, b), max_nline
         self.p_para_nword = [1.7,3.0,10] # beta: (a,b), max_nword
@@ -623,11 +623,10 @@ class TextSource(object):
     def sample_line(self,nline_max,nchar_max):
         nline = nline_max+1
         while nline > nline_max:
-            nline = np.random.choice([1,2,3], p=self.p_line_nline)
+            nline = np.random.choice([3, 4, 5], p=self.p_line_nline)
 
         # get number of words:
-        # nword = [self.p_line_nword[2]*sstat.beta.rvs(a=self.p_line_nword[0], b=self.p_line_nword[1])
-        nword = [self.p_line_nword[2]*sstat.beta.rvs(self.p_line_nword[0], self.p_line_nword[1])
+        nword = [self.p_line_nword[2] * sstat.beta.rvs(self.p_line_nword[0], self.p_line_nword[1])
                  for _ in xrange(nline)]
         nword = [max(1,int(np.ceil(n))) for n in nword]
 
